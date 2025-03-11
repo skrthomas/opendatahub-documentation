@@ -1,0 +1,20 @@
+
+:_module-type: REFERENCE
+
+[id='guardrails-orchestrator-parameters_{context}']
+= GuardrailsOrchestrator parameters
+You can modify the parameters for the `GuardrailsOrchestrator` object. For more information about parameters and their usage, see the following table:
+
+[cols="1,2a", options="header"]
+|===
+|Parameter |Description
+|`replicas`| The number of orchestrator pods to spin up
+|`orchestratorConfig`| The name of the ConfigMap object that contains generator, detector, and chunker arguments
+
+* `protocol` - sets the protocol for all the OTLP endpoints. Acceptable values are `grpc` or`http`
+* `tracesProtocol` - overrides the protocol for traces. Acceptable values are `grpc` or `http`
+* `metricsProtocol` - overrides the protocol for metrics. Acceptable values are either `grpc` or `http`
+* `otlpEndpoint` - sets the OTLP endpoint. Defaults are  `gRPC localhost:4317` and `HTTP localhost:4318`
+* `metricsEndpoint` - overrides the OTLP endpoint for metrics
+* `tracesEndpoint` -  overrides the OTLP endpoint for traces
+|===
