@@ -1,0 +1,164 @@
+:_module-type: PROCEDURE
+
+[id='guardrails-orchestrator-optional-config-regex-vLLM_{context}']
+
+= Configuring the regex detector and vLLM gateway
+
+[role='_abstract']
+Enable the regex detector and vLLM gateway sidecar images to be use with the `GuardrailsOrchestrator` service.
+
+.Prerequisites
+* You have cluster administrator privileges for your {openshift-platform} cluster.
+* You have downloaded and installed the OpenShift command-line interface (CLI). See link:https://docs.redhat.com/en/documentation/openshift_container_platform/{ocp-latest-version}/html/cli_tools/openshift-cli-oc#installing-openshift-cli[Installing the OpenShift CLI^].
+* You are familiar with link:https://docs.redhat.com/en/documentation/openshift_container_platform/{ocp-latest-version}/html/monitoring/configuring-the-monitoring-stack#creating-user-defined-workload-monitoring-configmap_configuring-the-monitoring-stack[creating a config map] for monitoring a user-defined workflow. You will perform similar steps in this procedure.
+
+.Procedure
+
+. Define a `ConfigMap` object in a yaml file called `vllm_images_cm.yaml` to specify the `regexDetectorImage` and `vLLMGatewayImage` images:
++
+.Example `vllm_images_cm.yaml`
+[source,yaml]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gorch-sample-config
+data:
+  regexDetectorImage: 'quay.io/csantiago/regex-detector@sha256:2dbfa4680938a97d0e0cac75049c43687ad163666cf2c6ddc37643c4f516d144' <1>
+  vllmGatewayImage: 'quay.io/csantiago/vllm-orchestrator-gateway@sha256:493ac4679d50db9c2c59967dcaa6737a995cd19f319727f33c40f159db6817db <2>
+---
+<1> The regex detector is a sidecar image that provides regex-based detections
+<2> The vLLM gateway is a sidecar image that emulates the vLLM chat completions API and saves preset detector configurations
+
+. Deploy the `vllm_images_cm.yaml` config map:
++
+[source,terminal]
+---
+$ oc apply -f vllm_images_cm.yaml -n $TEST_NS
+---
+
+. Define another `ConfigMap` object in a yaml file called `orchestrator_cm.yaml` to specify the `chat_generatrion`, `chunker_id`, and `detectors` services:
++
+.Example `orchestrator_cm.yaml`
+[source,yaml]
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: fms-orchestr8-config-nlp
+data:
+  config.yaml: |
+    chat_generation:
+      service:
+        hostname: llm-predictor.guardrails-test.svc.cluster.local
+        port: 8032
+    detectors:  <1>
+      regex:
+        type: text_contents
+        service:
+            hostname: "127.0.0.1"
+            port: 8080
+        chunker_id: whole_doc_chunker
+        default_threshold: 0.5
+---
+<1> A list of pre-configured regexes for common detection actions.
+
+. Deploy the `orchestrator_cm.yaml` config map:
++
+[source,terminal]
+---
+$ oc apply -f orchestrator_cm.yaml -n $TEST_NS
+---
+. Define another `ConfigMap` object in a yaml file called `detectors_cm.yaml` to specify the detector arguments:
++
+.Example `detectors_cm.yaml`
+[source,yaml]
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: fms-orchestr8-config-gateway
+  labels:
+    app: fmstack-nlp
+data:
+  config.yaml: |
+    orchestrator:   <1>
+      host: "localhost"
+      port: 8032
+    detectors:      <2>
+      - name: regex
+        detector_params:
+          regex:
+            - email
+            - ssn
+      - name: other_detector
+    routes:         <3>
+      - name: pii
+        detectors:
+          - regex
+      - name: passthrough
+        detectors:
+---
+<1> The orchestrator service.
+<2> A list of pre-configured regexes for common detection actions.
+<3> The resulting endpoints for detections.
+
+. Deploy the vLLM gateway `detectors_cm.yaml` config map:
++
+[source,terminal]
+---
+$ oc apply -f detectors_cm.yaml -n $TEST_NS
+---
+
+. Specify the `ConfigMap` objects you created in Step 3 and Step 5 in the `GuardrailsOrchestrator` custom resource (CR) named `orchestrator_cr.yaml`:
++
+.Example `orchestrator_cr.yaml` CR
+[source,yaml]
+---
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: GuardrailsOrchestrator
+metadata:
+  name: gorch-sample
+spec:
+  orchestratorConfig: "fms-orchestr8-config-nlp"
+  vllmGatewayConfig: "fms-orchestr8-config-gateway"
+  replicas: 1
+---
+
+. Deploy the orchestrator custom resource. This creates a service account, deployment, service, and route object in your namespace.
++
+[source,terminal]
+---
+oc apply -f orchestrator_cr.yaml -n $TEST_NS
+---
+
+.Verification
+. Check the readiness of the orchestrator pods:
++
+[source,terminal]
+---
+$ oc get pods -n $TEST_NS
+---
+
+.Expected output
+[source,terminal]
+---
+NAME                                       READY   STATUS    RESTARTS   AGE
+gorch-test-55bf5f84d9-dd4vm                3/3     Running   0          3h53m
+llm-container-deployment-bd4d9d898-52r5j   1/1     Running   0          3h53m
+llm-predictor-5d54c877d5-rbdms             1/1     Running   0          57m
+---
+
+. Check the health of your detector and generator services by runnning the following command to get inside the orchestrator container:
++
+[source,terminal]
+---
+export POD_NAME=gorch-test-55bf5f84d9-dd4vm <1> 
+export CONTAINER_NAME=gorch-test
+---
+<1> Replace this with the name of your guardrails orchestrator pod.
++
+[source,terminal]
+---
+$ oc exec -it -n $TEST_NS $POD_NAME -c $CONTAINER_NAME -- /bin/bash
+---
