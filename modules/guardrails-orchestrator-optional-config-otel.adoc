@@ -30,7 +30,7 @@ spec:
     otlpExport: "metrics"
 ---
 
-. Deploy the orchestrator custom resource.
+. Deploy the orchestrator custom resource. 
 [source,terminal]
 ---
 $ oc apply -f orchestrator_otel_cr.yaml
