@@ -29,7 +29,9 @@ include::assemblies/using-explainability.adoc[leveloffset=+1]
 
 include::assemblies/evaluating-large-language-models.adoc[leveloffset=+1]
 
-include::assemblies/configuring-the-guardrails-orchestrator-service.adoc[leveloffset=+1]
+include::assemblies/enabling-ai-safety.adoc[leveloffset=+1]
+
+include::assemblies/using-guardrails-for-ai-safety.adoc[leveloffset=+1]
 
 include::assemblies/using-llama-stack-with-trustyai.adoc[leveloffset=+1]
 
